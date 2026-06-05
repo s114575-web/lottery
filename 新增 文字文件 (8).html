@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✨ 炫彩極光 班級抽籤筒 ✨</title>
+    <style>
+        :root {
+            --primary: #6c5ce7;
+            --secondary: #00cec9;
+            --accent: #ff7675;
+            --card-bg: rgba(5, 11, 20, 0.4);
+            --card-border: rgba(255, 255, 255, 0.1);
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            background-color: #030712;
+            color: #ffffff;
+        }
+
+        /* 滿版 Canvas 背景固定在底層 */
+        #bgCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* 主畫面容器排版 */
+        .wrapper {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        /* 磨砂玻璃容器效果 */
+        .container {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            padding: 2.5rem;
+            border-radius: 24px;
+            text-align: center;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 {
+            background: linear-gradient(to right, #00cec9, #a29bfe, #ff7675);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.2rem;
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            color: #b2bec3;
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        /* 3D霓虹發光大圓圈 */
+        .result-display {
+            width: 220px;
+            height: 220px;
+            background: radial-gradient(circle at center, rgba(108, 92, 231, 0.2) 0%, rgba(6, 9, 24, 0.6) 100%);
+            border: 4px solid var(--primary);
+            border-radius: 50%;
+            margin: 0 auto 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 30px rgba(108, 92, 231, 0.5), inset 0 0 20px rgba(108, 92, 231, 0.3);
+            position: relative;
+        }
+
+        /* 滾動時的震動動畫 */
+        .shaking {
+            animation: shake 0.1s infinite;
+        }
+
+        /* 抽中時的放大光芒動畫 */
+        .winner-glow {
+            animation: celebrate 0.5s ease-out;
+            border-color: var(--secondary) !important;
+            box-shadow: 0 0 40px rgba(0, 206, 201, 0.8), inset 0 0 20px rgba(0, 206, 201, 0.5) !important;
+        }
+
+        .result-num {
+            font-size: 4rem;
+            font-weight: 900;
+            line-height: 1;
+            background: linear-gradient(to bottom, #ffffff, #dfe6e9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .result-name {
+            font-size: 1.6rem;
+            font-weight: bold;
+            margin-top: 8px;
+            color: var(--secondary);
+            text-shadow: 0 0 10px rgba(0, 206, 201, 0.5);
+        }
+
+        /* 科技感炫彩按鈕 */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary) 0%, #4834d4 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            border-radius: 14px;
+            cursor: pointer;
+            font-weight: bold;
+            flex: 3;
+            box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            letter-spacing: 2px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(108, 92, 231, 0.6);
+            background: linear-gradient(135deg, #786fa6 0%, var(--primary) 100%);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            background: #2d3436;
+            color: #636e72;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* 重設按鈕 */
+        .btn-reset {
+            background: #2d3436;
+            border: 1px solid var(--card-border);
+            color: #b2bec3;
+            flex: 1;
+            padding: 1rem;
+            font-size: 1rem;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-reset:hover {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 118, 117, 0.4);
+        }
+
+        /* 狀態面板 */
+        .status-panel {
+            margin-top: 2rem;
+            font-size: 0.95rem;
+            border-top: 1px solid var(--card-border);
+            padding-top: 1.5rem;
+        }
+
+        #remains {
+            color: #00cec9;
+            font-size: 1.05rem;
+        }
+
+        .history-title {
+            font-weight: bold;
+            margin-top: 1.2rem;
+            text-align: left;
+            color: #b2bec3;
+        }
+
+        .history {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #dfe6e9;
+            text-align: left;
+            max-height: 120px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            line-height: 1.6;
+        }
+
+        /* 動畫效果定義 */
+        @keyframes shake {
+            0% { transform: translate(2px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(0px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(2px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(2px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        @keyframes celebrate {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.12); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+
+<div class="wrapper">
+    <div class="container">
+        <h1>🎰 幸運極光抽籤筒</h1>
+        <div class="subtitle">成員範圍：01 - 35 號（不重複抽取）</div>
+
+        <div class="result-display" id="displayBox">
+            <div class="result-num" id="resultNum">?</div>
+            <div class="result-name" id="resultName">READY</div>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn" id="drawBtn">點擊抽籤</button>
+            <button class="btn-reset" id="resetBtn" title="重設號碼筒">🔄</button>
+        </div>
+
+        <div class="status-panel">
+            <div id="remains">號碼筒剩餘：35 人</div>
+            <div class="history-title">📜 已抽中名單：</div>
+            <div class="history" id="historyList">尚未有人中獎</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 學生名單資料
+    const students = [
+        { id: "01", name: "方心妤" }, { id: "02", name: "方以安" }, { id: "03", name: "史佳玉" },
+        { id: "04", name: "朱妤芯" }, { id: "05", name: "江珮瑜" }, { id: "06", name: "吳宣蓉" },
+        { id: "07", name: "吳宥蓁" }, { id: "08", name: "李羽倢" }, { id: "09", name: "李杰恩" },
+        { id: "10", name: "林于涵" }, { id: "11", name: "林思琦" }, { id: "12", name: "施采靚" },
+        { id: "13", name: "紅沁緹" }, { id: "14", name: "凌子媛" }, { id: "15", name: "高湘螢" },
+        { id: "16", name: "張家瑋" }, { id: "17", name: "莊家穎" }, { id: "18", name: "許舒涵" },
+        { id: "19", name: "陳妍蓁" }, { id: "20", name: "陳冠妤" }, { id: "21", name: "陳姮安" },
+        { id: "22", name: "陳語恩" }, { id: "23", name: "曾齡萱" }, { id: "24", name: "童彥禎" },
+        { id: "25", name: "黃靖甯" }, { id: "26", name: "楊愛慈" }, { id: "27", name: "趙巧芸" },
+        { id: "28", name: "蔡欣妤" }, { id: "29", name: "鄭琳穎" }, { id: "30", name: "鄭詠心" },
+        { id: "31", name: "黎天晴" }, { id: "32", name: "謝芯" },   { id: "33", name: "簡瑋杉" },
+        { id: "34", name: "蘇郁臻" }, { id: "35", name: "蘇楨詒" }
+    ];
+
+    let pool = [...students];
+    let history = [];
+    let isDrawing = false;
+
+    const displayBox = document.getElementById('displayBox');
+    const resultNum = document.getElementById('resultNum');
+    const resultName = document.getElementById('resultName');
+    const drawBtn = document.getElementById('drawBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const remainsDisplay = document.getElementById('remains');
+    const historyDisplay = document.getElementById('historyList');
+
+    // --- 抽籤主程式邏輯 ---
+    drawBtn.addEventListener('click', function() {
+        if (isDrawing || pool.length === 0) return;
+
+        isDrawing = true;
+        drawBtn.disabled = true;
+        
+        displayBox.classList.add('shaking');
+        displayBox.classList.remove('winner-glow');
+        
+        let counter = 0;
+        const shuffleTimes = 16; 
+        
+        const interval = setInterval(() => {
+            const tempRandom = pool[Math.floor(Math.random() * pool.length)];
+            if (tempRandom) {
+                resultNum.textContent = tempRandom.id;
+                resultName.textContent = tempRandom.name;
+                createParticles(5);
+            }
+            counter++;
+
+            if (counter >= shuffleTimes) {
+                clearInterval(interval);
+                
+                displayBox.classList.remove('shaking');
+                displayBox.classList.add('winner-glow');
+
+                const luckyIndex = Math.floor(Math.random() * pool.length);
+                const winner = pool[luckyIndex];
+                
+                pool.splice(luckyIndex, 1);
+                history.push(winner);
+
+                resultNum.textContent = winner.id;
+                resultName.textContent = winner.name;
+                
+                createParticles(70);
+
+                remainsDisplay.textContent = `號碼筒剩餘：${pool.length} 人`;
+                historyDisplay.textContent = history.map(s => `${s.id}${s.name}`).join(', ');
+
+                if (pool.length === 0) {
+                    drawBtn.textContent = '全數抽完囉！';
+                } else {
+                    drawBtn.disabled = false;
+                }
+                isDrawing = false;
+            }
+        }, 80);
+    });
+
+    // --- 重設功能 ---
+    resetBtn.addEventListener('click', function() {
+        if (isDrawing) return;
+        if (confirm("確定要重設抽籤筒嗎？目前的已抽中紀錄將會被清空。")) {
+            pool = [...students];
+            history = [];
+            resultNum.textContent = "?";
+            resultName.textContent = "READY";
+            drawBtn.textContent = "點擊抽籤";
+            drawBtn.disabled = false;
+            displayBox.classList.remove('winner-glow', 'shaking');
+            remainsDisplay.textContent = `號碼筒剩餘：35 人`;
+            historyDisplay.textContent = "尚未有人中獎";
+            createParticles(20);
+        }
+    });
+
+    // --- 整合背景引擎 (星空 + 翠綠極光 + 流星 + 噴發紙屑) ---
+    const canvas = document.getElementById("bgCanvas");
+    const ctx = canvas.getContext("2d");
+    
+    let particles = []; // 中獎特效粒子
+    let stars = [];     // 背景星星
+    let meteors = [];   // 流星
+    let auroraTime = 0; // 極光時間軸
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        initStars();
+    }
+    window.addEventListener("resize", resizeCanvas);
+
+    // 星星初始化
+    function initStars() {
+        stars = [];
+        for (let i = 0; i < 80; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 1.5,
+                alpha: Math.random(),
+                speed: 0.01 + Math.random() * 0.02
+            });
+        }
+    }
+
+    // 建立新流星
+    function createMeteor() {
+        meteors.push({
+            x: Math.random() * canvas.width * 0.8,
+            y: 0,
+            length: 80 + Math.random() * 70,
+            speed: 4 + Math.random() * 5,
+            alpha: 1
+        });
+    }
+
+    // 中獎彩帶/紙屑粒子類別
+    class Particle {
+        constructor(x, y, isCelebration) {
+            this.x = x;
+            this.y = y;
+            if (isCelebration) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 8 + 4;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.gravity = 0.15;
+            } else {
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = (Math.random() - 0.5) * 4;
+                this.gravity = 0;
+            }
+            this.size = Math.random() * 6 + 4;
+            this.color = ["#00cec9", "#6c5ce7", "#ff7675", "#fdcb6e", "#e84393"][Math.floor(Math.random() * 5)];
+            this.alpha = 1;
+            this.decay = Math.random() * 0.015 + 0.01;
+        }
+        update() {
+            this.vy += this.gravity;
+            this.x += this.vx;
+            this.y += this.vy;
+            this.alpha -= this.decay;
+        }
+        draw() {
+            ctx.save();
+            ctx.globalAlpha = this.alpha;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    function createParticles(count) {
+        const rect = displayBox.getBoundingClientRect();
+        const originX = rect.left + rect.width / 2;
+        const originY = rect.top + rect.height / 2;
+        
+        const isCelebration = count > 10;
+        for (let i = 0; i < count; i++) {
+            particles.push(new Particle(originX, originY, isCelebration));
+        }
+    }
+
+    // 渲染主迴圈
+    function animate() {
+        // 1. 背景深藍黑底色
+        ctx.fillStyle = '#050a15';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 2. 繪製星空 (閃爍)
+        for (let s of stars) {
+            s.alpha += s.speed;
+            if (s.alpha > 1 || s.alpha < 0) s.speed = -s.speed;
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(s.alpha)})`;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 3. 繪製絲綢流動翠綠極光
+        auroraTime += 0.002;
+        for (let layer = 0; layer < 3; layer++) {
+            ctx.beginPath();
+            let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            let alphaBase = 0.16 - layer * 0.03;
+            gradient.addColorStop(0.1, `rgba(0, 255, 150, 0)`);
+            gradient.addColorStop(0.35 + layer * 0.08, `rgba(0, 230, 130, ${alphaBase})`);
+            gradient.addColorStop(0.55 + layer * 0.08, `rgba(0, 180, 200, ${alphaBase * 0.4})`);
+            gradient.addColorStop(0.85, `rgba(0, 50, 100, 0)`);
+            ctx.fillStyle = gradient;
+
+            ctx.moveTo(0, canvas.height);
+            for (let x = 0; x <= canvas.width; x += 15) {
+                let y1 = Math.sin(x * 0.0025 + auroraTime + layer) * 100;
+                let y2 = Math.cos(x * 0.004 - auroraTime * 1.3 + layer) * 50;
+                let baseHeight = canvas.height * 0.3 + (layer * 35);
+                ctx.lineTo(x, baseHeight + y1 + y2);
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // 4. 繪製隨機流星
+        for (let i = meteors.length - 1; i >= 0; i--) {
+            let m = meteors[i];
+            m.x += m.speed;
+            m.y += m.speed * 0.7;
+            m.alpha -= 0.015;
+
+            if (m.alpha <= 0 || m.x > canvas.width || m.y > canvas.height) {
+                meteors.splice(i, 1);
+                continue;
+            }
+
+            let meteorGrad = ctx.createLinearGradient(m.x, m.y, m.x - m.length, m.y - m.length * 0.7);
+            meteorGrad.addColorStop(0, `rgba(255, 255, 255, ${m.alpha})`);
+            meteorGrad.addColorStop(0.5, `rgba(0, 255, 200, ${m.alpha * 0.5})`);
+            meteorGrad.addColorStop(1, `rgba(0, 255, 150, 0)`);
+
+            ctx.strokeStyle = meteorGrad;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(m.x, m.y);
+            ctx.lineTo(m.x - m.length, m.y - m.length * 0.7);
+            ctx.stroke();
+        }
+
+        if (Math.random() < 0.006) {
+            createMeteor();
+        }
+
+        // 5. 繪製中獎噴發紙屑粒子
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            if (particles[i].alpha <= 0) {
+                particles.splice(i, 1);
+            } else {
+                particles[i].draw();
+            }
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    // 啟動初始化與動畫
+    resizeCanvas();
+    animate();
+</script>
+
+</body>
+</html>
